@@ -1,0 +1,15 @@
+05-241023  
+松尾凜太朗  
+
+
+受信時に行うのは以下のことである
+
+ - 送信同様、受信用の`virtq`を用意する(`virtq_rx`)  
+ - 受信データを入れるバッファ(0x1000-aligned)を用意する(`rx_buffer`)  
+   今回は`N_RX_BUFFERS` = 16個用意した。  
+ - そのバッファを表すdescriptorたちをdescriptor areaに入れ、available queueにも入れ、デバイスに通知する。(`init_virtio_net`後半)  
+   initialize時にやってしまう。
+ - used queueのidxが0(または前回読んだ時のidx)から変わるまでポーリングで待つ(`receive_packet`先頭)
+ - used queueにはid, lenが入っている。idは、descriptor areaのid番目に入っているdescriptorが指すバッファに受信データが入ったことを表すから、それを読んで表示する。(`receive_packet`後半)  
+   本来descriptorはチェインされている可能性があるが、今回の実装ではこれを考慮していない。  
+

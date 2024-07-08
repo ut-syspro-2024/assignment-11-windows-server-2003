@@ -1,0 +1,29 @@
+05-241023  
+松尾凜太朗  
+
+この課題は、複数のタスクを定期的に切り替えるというOSのタスクスケジューラを実装するというものである。  
+
+前回作ったlapic timerを用いた機構により、一定間隔でinterrupt_handler.Sの`lapic_intr_handler`が呼ばれる。この関数は
+
+ - 汎用レジスタをpushで退避
+ - この時点でのrspを引数にsched.cの`lapic_intr_handler_internal`を呼び出す
+ - `lapic_intr_handler_internal`の戻り値をrspに設定
+ - (変更されたrspから)汎用レジスタをpopで復帰
+ - iretq
+
+という動作をする。`lapic_intr_handler_internal`は`schedule`を呼んでその戻り値をそのまま返す。`schedule`は
+ - 引数のspを「現在のタスクのsp」として保存
+ - 次のタスクの前回の中断時に保存したspを返す
+
+という動作をする。次のタスクの前回の中断時に保存したspは、`lapic_intr_handler`が汎用レジスタを退避し切った時点でのrspのはずであり、それを返すと`lapic_intr_handler`がそのrspから汎用レジスタの復帰を行うので正しく動作する。  
+ただし、(最初から実行される)タスク0以外のタスクについては、あたかも前回中断した状態のような初期スタックを作らなければならない。  
+これを行うのがsched.cの`prepare_stack`関数である。このスタックには、`lapic_intr_handler`が退避した(ように見せる)汎用レジスタと、iretqによりpopされるコンテキストが入っている。  
+[arch/x86/include/asm/ptrace.h](https://elixir.bootlin.com/linux/v5.17/source/arch/x86/include/asm/ptrace.h#L59) の`pt_regs`構造体を参考に書いた。  
+SS, RSP, RFLAGS, CS, RIP, 汎用レジスタを順にpushした状態を作ればよい。SSやCSは16bit幅であるが、64bit幅でpush/popされることに注意が必要だった。  
+
+上記の設計では、lapicのend of interruptは`lapic_intr_handler_internal`内で呼べばよいので、その機能をlapic.hで公開する必要はなかった。
+
+タスク0を最初に開始する`start_task0`関数は、スタックポインタをタスク0のものに設定してから`task0`に飛ぶ。
+
+
+タスク内では、一定間隔でHello from app*という文字をputsしている。volatileな変数に(大きな)一定の回数書き込むことで、最適化により除去されないような遅延機構が作れている。  
