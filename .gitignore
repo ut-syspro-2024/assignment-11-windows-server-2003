@@ -1,0 +1,14 @@
+fs
+bootloader/BOOTX64.EFI
+kernel/kernel
+apps/app1
+apps/app2
+apps/app3
+OVMF.fd
+*.o
+*.map
+*.pcap
+*.orig
+*.rej
+*.elf
+copy.sh
